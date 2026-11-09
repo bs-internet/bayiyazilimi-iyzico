@@ -1,0 +1,22 @@
+{
+    "name": "bsinternet/iyzico",
+    "description": "Bayi yazılımı için iyzico kart ödeme modülü: Checkout Form (3D Secure), taksit tablosu, BIN sorgusu, iade ve kartla cari tahsilat.",
+    "type": "library",
+    "license": "proprietary",
+    "require": {
+        "php": "^8.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Bsinternet\\Iyzico\\": "src/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Bsinternet\\Iyzico\\IyzicoServiceProvider"
+            ]
+        }
+    },
+    "minimum-stability": "stable"
+}

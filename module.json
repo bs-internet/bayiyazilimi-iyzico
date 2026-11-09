@@ -1,0 +1,18 @@
+{
+    "key": "iyzico",
+    "name": "iyzico",
+    "description": "iyzico ile kredi / banka kartı ödemesi (Checkout Form, 3D Secure), taksit tablosu, BIN sorgusu, iade ve kartla cari tahsilat.",
+    "version": "1.0.0",
+    "provider": "Bsinternet\\Iyzico\\IyzicoServiceProvider",
+    "areas": ["panel"],
+    "requires": {
+        "php": "^8.4",
+        "laravel": "^13.0"
+    },
+    "publish": [],
+    "migrate": false,
+    "permissions": "remove",
+    "purge_data": false,
+    "enabled": true,
+    "author": { "name": "BS İnternet" }
+}
