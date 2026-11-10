@@ -35,6 +35,12 @@ final class IyzicoServiceProvider extends ServiceProvider
 
         hooks()->filter('shop.settings.defaults', fn (array $value) => [...$value, ...self::DEFAULTS]);
 
+        // İçerik güvenlik politikası: ödeme formu gönderildikten sonra iyzico'nun
+        // ödeme sayfasına yönlenilir (form-action yönlendirmeyi de denetler).
+        hooks()->filter('security.csp', fn (array $value) => array_merge_recursive($value, [
+            'form-action' => ['https://*.iyzipay.com'],
+        ]));
+
         hooks()->action('shop.payment.methods.register', function (PaymentRegistry $payments): void {
             $payments->add(new IyzicoGateway);
         }, 21);
