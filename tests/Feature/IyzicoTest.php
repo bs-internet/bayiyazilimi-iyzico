@@ -13,6 +13,7 @@ use App\Models\Carrier;
 use App\Models\Currency;
 use App\Models\Order;
 use App\Models\Product;
+use App\Models\Setting;
 use App\Models\User;
 use App\Models\Warehouse;
 use App\Services\Shop\Basket;
@@ -165,4 +166,33 @@ it('maps iyzico installment prices and refunds by transaction id', function () {
     expect($payment->fresh()->status)->toBe(PaymentStatus::Paid)
         ->and(app(LedgerService::class)->balance($this->member->account_id))->toEqualDecimal('20.0');
     Http::assertSent(fn ($request) => str_contains($request->url(), '/payment/refund') && $request['paymentTransactionId'] === 'T9' && $request['price'] === '20.0');
+});
+
+it('stores the iyzico keys encrypted and never shares them in bulk', function () {
+    $raw = fn (string $key) => (string) Setting::query()->where('key', $key)->value('value');
+
+    expect(ShopSettings::all())->not->toHaveKeys(['iyzico_api_key', 'iyzico_secret_key'])
+        ->and($raw('iyzico_api_key'))->not->toContain('api-key')
+        ->and($raw('iyzico_secret_key'))->not->toContain('secret-key')
+        ->and(ShopSettings::get('iyzico_secret_key'))->toBe('secret-key');
+});
+
+it('ignores a webhook while the iyzico payment is still in progress and applies a final failure', function () {
+    $order = ($this->place)();
+    $oid = ($this->open)($order);
+
+    // Önce 3D adımında bekleyen (kesin olmayan), sonra reddedilmiş sonuç.
+    Http::fake(['sandbox-api.iyzipay.com/payment/iyzipos/checkoutform/auth/ecom/detail' => Http::sequence()
+        ->push(['status' => 'success', 'paymentStatus' => 'INIT_THREEDS', 'basketId' => $oid, 'price' => 120])
+        ->push(['status' => 'failure', 'paymentStatus' => 'FAILURE', 'basketId' => $oid, 'errorMessage' => 'Kart reddedildi']),
+    ]);
+    $this->post(route('shop.payment.notify', 'iyzico'), ['token' => 'TKN-1'])->assertOk();
+
+    expect($order->payments()->sole()->status)->toBe(PaymentStatus::Pending)
+        ->and($order->fresh()->status)->toBe(OrderStatus::Pending);
+
+    $this->post(route('shop.payment.notify', 'iyzico'), ['token' => 'TKN-1'])->assertOk();
+
+    expect($order->payments()->sole()->status)->toBe(PaymentStatus::Failed)
+        ->and($order->fresh()->status)->toBe(OrderStatus::Failed);
 });

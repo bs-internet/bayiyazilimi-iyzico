@@ -105,7 +105,10 @@ final class IyzicoGateway extends HostedCardGateway implements ReconcilesPayment
     }
 
     /**
-     * iyzico web kancası (isteğe bağlı): token ile sonuç sorgulanır.
+     * iyzico web kancası (isteğe bağlı): token ile sonuç sorgulanır. Kimliksiz bir
+     * uç olduğu için yalnız kesin sonuç uygulanır: ödeme henüz sürüyorsa (müşteri
+     * iyzico sayfasındayken) ödeme başarısız sayılmaz; sonucu dönüş, sonraki
+     * bildirim ya da süre aşımındaki mutabakat belirler.
      */
     public function handleCallback(Request $request): Response
     {
@@ -113,7 +116,11 @@ final class IyzicoGateway extends HostedCardGateway implements ReconcilesPayment
         $payment = $token !== '' ? $this->paymentByToken($token) : null;
 
         if ($payment !== null) {
-            $this->settle($payment, $token);
+            $result = $this->client()->retrieveCheckout($token);
+
+            if (self::succeeded($result, $payment) || self::final($result)) {
+                $this->settle($payment, $token, $result);
+            }
         }
 
         return response()->json(['status' => 'ok']);
@@ -236,6 +243,17 @@ final class IyzicoGateway extends HostedCardGateway implements ReconcilesPayment
             && ($result['basketId'] ?? null) === $payment->merchant_oid
             && (! isset($result['currency']) || strtoupper((string) $result['currency']) === strtoupper((string) $payment->currency_code))
             && Money::of((string) ($result['price'] ?? 0), $payment->currency_code)->isEqualTo(Money::of($payment->amount, $payment->currency_code));
+    }
+
+    /**
+     * Sonuç kesin mi: iyzico ödemeyi sonuçlandırmış (SUCCESS / FAILURE). Başlamamış
+     * ya da 3D adımında bekleyen ödemenin sonucu henüz kesin değildir.
+     *
+     * @param  array<string, mixed>  $result
+     */
+    private static function final(array $result): bool
+    {
+        return in_array($result['paymentStatus'] ?? null, ['SUCCESS', 'FAILURE'], true);
     }
 
     /**
